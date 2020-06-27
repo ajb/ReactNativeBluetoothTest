@@ -13,50 +13,67 @@ import { BleManager } from 'react-native-ble-plx';
 
 const manager = new BleManager()
 
-export default function App() {
-  const [scanning, setScanning] = useState(false)
+function pad(n, width, z) {
+  z = z || '0';
+  n = n + '';
+  return n.length >= width ? n : new Array(width - n.length + 1).join(z) + n;
+}
 
-  function stopScan() {
-    manager.stopDeviceScan()
+export default function App() {
+  const [connected, setConnected] = useState(false)
+  const [ledIdx, setLedIdx] = useState(0)
+  const [scanning, setScanning] = useState(false)
+  const [connectedDevice, setConnectedDevice] = useState(null)
+
+  function stopScanning() {
     setScanning(false)
+    manager.stopDeviceScan()
   }
 
-  function scan() {
-    if (scanning) return;
+  function disconnect() {
+    if (!connected) return;
+    connectedDevice.cancelConnection()
+    setConnected(false)
+    setConnectedDevice(null)
+  }
+
+  function connect() {
+    if (connected) return;
     setScanning(true)
-    setTimeout(stopScan, 5000)
+    setTimeout(stopScanning, 5000)
 
     manager.startDeviceScan(null, null, (error, device) => {
       if (error) {
-        console.log('error', error)
+        console.log('Error: ', error);
         return
       }
 
-      console.log('device found in scan', device)
-
-      if (device.serviceUUIDs && device.serviceUUIDs[0] === BOARDCAT_SERVICE_ID) {
-        stopScan()
+      if (device.name === 'BoardCat LED') {
+        stopScanning()
 
         device.connect().then((device) => {
-          console.log('calling discover')
           return device.discoverAllServicesAndCharacteristics()
         }).then((device) => {
-          console.log('we are connected, writing...')
-          console.log('the device is', device)
+          setConnected(true)
+          setConnectedDevice(device)
 
-          device.writeCharacteristicWithoutResponseForService(
-            BOARDCAT_SERVICE_ID,
-            BOARDCAT_CHARACTERISTIC_ID,
-            btoa('001g')
-          )
-
-
+          device.onDisconnected(() => {
+            setConnected(false)
+            setConnectedDevice(null)
+          })
         }).catch((error) => {
-          console.log('error', error)
-          // Handle errors
-        });
-      }
-    })
+          console.log('Error: ', error.message)
+        })
+       }
+    });
+  }
+
+  function send() {
+    connectedDevice.writeCharacteristicWithResponseForService(
+      BOARDCAT_SERVICE_ID,
+      BOARDCAT_CHARACTERISTIC_ID,
+      btoa(pad(ledIdx, 3) + 'r')
+    )
   }
 
   return (
@@ -66,11 +83,14 @@ export default function App() {
         justifyContent: "center",
         alignItems: "center"
       }}>
-      {
-        scanning ?
-          <Text>Scanning...</Text> :
-          <Button onPress={scan} title='Connect and light' />
-      }
+        <Text>Connection status: {connected ? 'connected' : 'disconnected'}</Text>
+        <Text>Controlling LED index: {ledIdx}</Text>
+
+        <Button onPress={connect} title='Connect' />
+        <Button onPress={disconnect} title='Disconnect' />
+        <Button onPress={send} title='Make it red' />
+        <Button onPress={() => setLedIdx(ledIdx + 1)} title='Increment ledIdx' />
+        <Button onPress={() => setLedIdx(ledIdx - 1)} title='Decrement ledIdx' />
     </View>
   );
 }
