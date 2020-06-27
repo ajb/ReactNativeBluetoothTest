@@ -1,6 +1,6 @@
-const IPAD_ID = 'D1CDEB87-1273-6E86-FCB1-8C5DF9826477'
-const BOARDCAT_SERVICE_DEVICE_ID = '19B10000-E8F2-537E-4F6C-D104768A1214'
-const BOARDCAT_CHARACTERISTIC_ID = '19B10001-E8F2-537E-4F6C-D104768A1214'
+// const IPAD_ID = 'D1CDEB87-1273-6E86-FCB1-8C5DF9826477'
+const BOARDCAT_SERVICE_ID = '19b10000-e8f2-537e-4f6c-d104768a1214'
+const BOARDCAT_CHARACTERISTIC_ID = '19b10001-e8f2-537e-4f6c-d104768a1214'
 
 import React, { useEffect, useState } from 'react';
 import {
@@ -11,9 +11,10 @@ import {
 
 import { BleManager } from 'react-native-ble-plx';
 
+const manager = new BleManager()
+
 export default function App() {
   const [scanning, setScanning] = useState(false)
-  const manager = new BleManager()
 
   function stopScan() {
     manager.stopDeviceScan()
@@ -23,10 +24,9 @@ export default function App() {
   function scan() {
     if (scanning) return;
     setScanning(true)
-    console.log('scanning')
     setTimeout(stopScan, 5000)
 
-    manager.startDeviceScan(null, { allowDuplicates: true }, (error, device) => {
+    manager.startDeviceScan(null, null, (error, device) => {
       if (error) {
         console.log('error', error)
         return
@@ -34,25 +34,25 @@ export default function App() {
 
       console.log('device found in scan', device)
 
-      if (device.id === BOARDCAT_SERVICE_DEVICE_ID) {
+      if (device.serviceUUIDs && device.serviceUUIDs[0] === BOARDCAT_SERVICE_ID) {
         stopScan()
 
         device.connect().then((device) => {
           console.log('calling discover')
           return device.discoverAllServicesAndCharacteristics()
         }).then((device) => {
-          console.log('we now have device')
-          console.log(device)
-          return bleManager.connectToDevice({deviceIdentifier: device.id})
-        }).then((device) => {
           console.log('we are connected, writing...')
+          console.log('the device is', device)
 
-          device.writeCharacteristicWithoutResponseForService({
-            serviceUUID: BOARDCAT_SERVICE_DEVICE_ID,
-            characteristicUUID: BOARDCAT_CHARACTERISTIC_ID,
-            valueBase64: 'uyhhhh',
-          })
+          device.writeCharacteristicWithoutResponseForService(
+            BOARDCAT_SERVICE_ID,
+            BOARDCAT_CHARACTERISTIC_ID,
+            btoa('001g')
+          )
+
+
         }).catch((error) => {
+          console.log('error', error)
           // Handle errors
         });
       }
